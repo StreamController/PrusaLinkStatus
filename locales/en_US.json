@@ -1,0 +1,11 @@
+{
+    "plugin.name": "PrusaLinkStatus",
+    "actions.status.name": "Status",
+    "actions.status.ip.title": "IP",
+    "actions.status.key.title": "API Key",
+    "actions.status.top-label.title": "Top",
+    "actions.status.center-label.title": "Center",
+    "actions.status.bottom-label.title": "Bottom",
+    "actions.status.errors.no-data.top": "No",
+    "actions.status.errors.no-data.center": "connection"
+}
