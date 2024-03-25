@@ -4,6 +4,7 @@ import threading
 import time
 
 from matplotlib.testing import _has_tex_package
+from numpy import isin
 from src.backend.PluginManager.ActionBase import ActionBase
 from src.backend.PluginManager.PluginBase import PluginBase
 from src.backend.PluginManager.ActionHolder import ActionHolder
@@ -22,6 +23,7 @@ import requests
 
 # Add plugin to sys.paths
 sys.path.append(os.path.dirname(__file__))
+from plugins.com_core447_PrusaLinkStatus.GraphBase import GraphBase
 
 # Import globals
 import globals as gl
@@ -92,6 +94,8 @@ class Status(ActionBase):
         settings = self.plugin_base.get_settings()
         ip = settings.get("ip", "")
         key = settings.get("key", "")
+
+        settings = self.get_settings()
         top = settings.get("labels", {}).get("top", "")
         center = settings.get("labels", {}).get("center", "")
         bottom = settings.get("labels", {}).get("bottom", "")
@@ -154,12 +158,105 @@ class Status(ActionBase):
     
     def inject_data(self, label: str, data: dict) -> str:
         for key in data:
-            label = label.replace("{" + key + "}", str(data[key]))
+            value = data[key]
+            if key in ["time_remaining", "time_printing"]:
+                value = self.seconds_to_readable(value)
+
+            if isinstance(value, float):
+                value = round(value)
+            
+            label = label.replace("{" + key + "}", str(value))
         return label
-
-
+    
+    def seconds_to_readable(self, seconds: int) -> str:
+        minutes, seconds = divmod(seconds, 60)
+        hours, minutes = divmod(minutes, 60)
+        return f"{hours:02d}:{minutes:02d}"
     
 
+class HotendTemperature(GraphBase):
+    def __init__(self, action_id: str, action_name: str,
+                 deck_controller: "DeckController", page: Page, coords: str, plugin_base: PluginBase):
+        super().__init__(action_id=action_id, action_name=action_name,
+            deck_controller=deck_controller, page=page, coords=coords, plugin_base=plugin_base)
+        
+    def get_config_rows(self) -> list:
+        super_rows = super().get_config_rows()
+        self.ip_row = Adw.EntryRow(title=self.plugin_base.lm.get("actions.status.ip.title"))
+        self.key_row = Adw.PasswordEntryRow(title=self.plugin_base.lm.get("actions.status.key.title"))
+
+        self.top_label_row = Adw.EntryRow(title=self.plugin_base.lm.get("actions.status.top-label.title"))
+        self.center_label_row = Adw.EntryRow(title=self.plugin_base.lm.get("actions.status.center-label.title"))
+        self.bottom_label_row = Adw.EntryRow(title=self.plugin_base.lm.get("actions.status.bottom-label.title"))
+
+        self.load_config_defaults()
+
+        # Connect signals
+        self.ip_row.connect("notify::text", self.on_ip_row_changed)
+        self.key_row.connect("notify::text", self.on_key_row_changed)
+        self.top_label_row.connect("notify::text", self.on_label_row_changed)
+        self.center_label_row.connect("notify::text", self.on_label_row_changed)
+        self.bottom_label_row.connect("notify::text", self.on_label_row_changed)
+
+        super_rows.extend([self.ip_row, self.key_row, self.top_label_row, self.center_label_row, self.bottom_label_row])
+
+        return super_rows
+   
+
+    def load_config_defaults(self):
+        settings = self.plugin_base.get_settings()
+        ip = settings.get("ip", "")
+        key = settings.get("key", "")
+        top = settings.get("labels", {}).get("top", "")
+        center = settings.get("labels", {}).get("center", "")
+        bottom = settings.get("labels", {}).get("bottom", "")
+
+        # Update ui
+        self.ip_row.set_text(ip)
+        self.key_row.set_text(key)
+        self.top_label_row.set_text(top)
+        self.center_label_row.set_text(center)
+        self.bottom_label_row.set_text(bottom)
+
+    def on_ip_row_changed(self, entry, *args):
+        settings = self.plugin_base.get_settings()
+        settings["ip"] = entry.get_text()
+        self.plugin_base.set_settings(settings)
+
+        self.plugin_base.printer.host = entry.get_text()
+        self.plugin_base.data = self.plugin_base.fetch_data()
+
+    def on_key_row_changed(self, entry, *args):
+        settings = self.plugin_base.get_settings()
+        settings["key"] = entry.get_text()
+        self.plugin_base.set_settings(settings)
+
+        self.plugin_base.printer.api_key = entry.get_text()
+        self.plugin_base.data = self.plugin_base.fetch_data()
+
+    def on_label_row_changed(self, entry, *args):
+        settings = self.get_settings()
+        settings.setdefault("labels", {})
+        settings["labels"]["top"] = self.top_label_row.get_text()
+        settings["labels"]["center"] = self.center_label_row.get_text()
+        settings["labels"]["bottom"] = self.bottom_label_row.get_text()
+
+        self.set_settings(settings)
+        self.show()
+
+
+    def on_tick(self) -> None:
+        if self.plugin_base.data is None:
+            return
+        
+        temp = self.plugin_base.data.get("temp_nozzle", -1)
+        target = self.plugin_base.data.get("target_nozzle", -1)
+        self.target = target
+        self.percentages.append(temp)
+
+        self.show_graph()
+
+        self.set_bottom_label(f"{temp}°C", font_size=16)
 
 
 class PrusaLinkStatusPlugin(PluginBase):
@@ -170,7 +267,7 @@ class PrusaLinkStatusPlugin(PluginBase):
         self.init_printer()
 
         self.data = {}
-        threading.Thread(target=self.fetch_data_loop, name="printer status fetch").start()
+        threading.Thread(target=self.fetch_data_loop, name="printer status fetch", daemon=True).start()
 
         self.lm = self.locale_manager
 
@@ -182,6 +279,14 @@ class PrusaLinkStatusPlugin(PluginBase):
             action_name=self.lm.get("actions.status.name")
         )
         self.add_action_holder(self.status_holder)
+
+        self.hotend_temp_holder = ActionHolder(
+            plugin_base=self,
+            action_base=HotendTemperature,
+            action_id="com_core447_PrusaLinkStatus::HotendTemperature",
+            action_name=self.lm.get("actions.hotend-temp.name")
+        )
+        self.add_action_holder(self.hotend_temp_holder)
 
 
         # Register plugin
