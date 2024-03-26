@@ -2,5 +2,6 @@
     "version": "1.0.0",
     "thumbnail": "store/Thumbnail.png",
     "id": "com_core447_PrusaLinkStatus",
-    "name": "PrusaLinkStatus"
+    "name": "PrusaLinkStatus",
+    "description": "Show the print status of 3d printers using PrusaLink."
 }
