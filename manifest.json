@@ -3,5 +3,17 @@
     "thumbnail": "store/Thumbnail.png",
     "id": "com_core447_PrusaLinkStatus",
     "name": "PrusaLinkStatus",
-    "description": "Show the print status of 3d printers using PrusaLink."
+    "descriptions": {
+        "en_US": "Show the print status of 3D printers using PrusaLink."
+    },
+    "short-descriptions": {
+        "en_US": "Check printer status"
+    },
+    "tags": ["Utility", "3D Printing"],
+    "minimum-app-version": "1.0.0",
+    "app-version": "1.4.11-beta",
+
+    
+    "description": "Show the print status of 3D printers using PrusaLink.",
+    "short-description": "Check printer status"
 }
