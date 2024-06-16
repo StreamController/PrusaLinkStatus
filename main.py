@@ -8,6 +8,8 @@ from numpy import isin
 from src.backend.PluginManager.ActionBase import ActionBase
 from src.backend.PluginManager.PluginBase import PluginBase
 from src.backend.PluginManager.ActionHolder import ActionHolder
+from src.backend.DeckManagement.InputIdentifier import Input
+from src.backend.PluginManager.ActionInputSupport import ActionInputSupport
 
 # Import gtk modules
 import gi
@@ -32,7 +34,7 @@ import globals as gl
 from src.backend.DeckManagement.DeckController import DeckController
 from src.backend.PageManagement.Page import Page
 
-import PrusaLinkPy
+import PrusaLinkPy #TODO: Remove, also from the app requirements
 
 class Status(ActionBase):
     def __init__(self, action_id: str, action_name: str,
@@ -275,16 +277,26 @@ class PrusaLinkStatusPlugin(PluginBase):
         self.status_holder = ActionHolder(
             plugin_base=self,
             action_base=Status,
-            action_id="com_core447_PrusaLinkStatus::Status",
-            action_name=self.lm.get("actions.status.name")
+            action_id_suffix="Status",
+            action_name=self.lm.get("actions.status.name"),
+            action_support={
+                Input.Key: ActionInputSupport.SUPPORTED,
+                Input.Dial: ActionInputSupport.SUPPORTED,
+                Input.Touchscreen: ActionInputSupport.UNSUPPORTED
+            }
         )
         self.add_action_holder(self.status_holder)
 
         self.hotend_temp_holder = ActionHolder(
             plugin_base=self,
             action_base=HotendTemperature,
-            action_id="com_core447_PrusaLinkStatus::HotendTemperature",
-            action_name=self.lm.get("actions.hotend-temp.name")
+            action_id_suffix="HotendTemperature",
+            action_name=self.lm.get("actions.hotend-temp.name"),
+            action_support={
+                Input.Key: ActionInputSupport.SUPPORTED,
+                Input.Dial: ActionInputSupport.SUPPORTED,
+                Input.Touchscreen: ActionInputSupport.UNSUPPORTED
+            }
         )
         self.add_action_holder(self.hotend_temp_holder)
 
